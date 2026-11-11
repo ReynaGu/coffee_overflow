@@ -36,7 +36,10 @@
       </ul>
     </div>
     <div class="d-flex align-items-center gap-4">
-      <!-- TODO (cart): add the cart icon + item count here once the cart page is merged -->
+      <a class="position-relative text-dark" href="cart.html" aria-label="Shopping cart">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1a2.5 2.5 0 0 1 2.5 2.5V4h-5v-.5A2.5 2.5 0 0 1 8 1m3.5 3v-.5a3.5 3.5 0 1 0-7 0V4H1v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4zM2 5h12v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg>
+        <span class="badge rounded-pill bg-dark position-absolute top-0 start-100 translate-middle d-none" data-cart-count></span>
+      </a>
       <a class="" data-bs-toggle="offcanvas" href="#offcanvasExample" role="button" aria-controls="offcanvasExample" aria-label="Open menu">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-list" viewBox="0 0 16 16">
   <path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5"/>
@@ -249,10 +252,15 @@
         <li class="nav-item">
           <a class="nav-link" href="contact.html">Contact</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" href="cart.html">Cart</a>
+        </li>
       </ul>
     </div>
   </div>
 </div>
 
+  <!-- Cart count in the navbar. Cart logic and TODO(BACKEND) notes are in cart.js. -->
+  <script src="./assets/js/cart.js"></script>
 </body>
 </html>
