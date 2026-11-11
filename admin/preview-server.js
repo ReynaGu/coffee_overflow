@@ -25,7 +25,7 @@ if(process.env.ADMIN_LOCAL_EDIT==='1'){
   localApi=createLocalEditApi({password:process.env.ADMIN_LOCAL_EDIT_PASSWORD,pool:db,database:process.env.DB_NAME});
 }
 const visibleAdmin=new Set(['index.html','admin.css','admin.js','demo-data.js','product-bridge.js']);
-const visibleRoot=new Set(['index.html','products.html','about.html','contact.html']);
+const visibleRoot=new Set(['index.html','products.html','about.html','contact.html','cart.html']);
 function staticAllowed(name){
   const parts=name.split('/').filter(Boolean);
   if(parts.length===1&&visibleRoot.has(parts[0]))return true;
