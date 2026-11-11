@@ -14,18 +14,21 @@
  const liveProducts=['live','editable'].includes(query.get('products')) && !live;
  const endpoint=async(path,options={})=>{
   if(!live){
-    if(liveProducts && path.split('?')[0]==='/api/admin/products'){
-      if(!options.method || options.method==='GET') return window.CoffeeAdminProductBridge.listFromTeamApi(fetch, location.hostname);
-      throw Error('This product operation is not allowed in local mode.');
+    if(liveProducts && path.split('?')[0]==='/api/admin/products' && (!options.method || options.method==='GET')){
+      return window.CoffeeAdminProductBridge.listFromTeamApi(fetch, location.hostname);
     }
-    if(editableProducts && /^\/api\/admin\/products\/\d+$/.test(path) && options.method==='PATCH'){
-      let r;try{r=await fetch(path.replace('/api/admin/products/','/api/local-admin/products/'),{
-        method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Coffee-Dev':'1'},body:JSON.stringify(options.body)
-      });}catch{throw Error('Local admin edit service is unavailable. Restart your preview server.');}
-      let result;try{result=await r.json();}catch{throw Error('Local admin edit service returned an invalid response');}
+    const devProductPath=path.replace('/api/admin/products','/api/local-admin/products');
+    const isProductCreate=path==='/api/admin/products'&&options.method==='POST';
+    const isProductEdit=/^\/api\/admin\/products\/\d+$/.test(path)&&options.method==='PATCH';
+    if(editableProducts && (isProductCreate||isProductEdit)){
+      let r;try{r=await fetch(devProductPath,{
+        method:options.method,credentials:'same-origin',headers:{'Content-Type':'application/json','X-Coffee-Dev':'1'},body:JSON.stringify(options.body)
+      });}catch{throw Error('Local admin product service is unavailable. Restart your preview server.');}
+      let result;try{result=await r.json();}catch{throw Error('Local admin product service returned an invalid response');}
       if(!r.ok)throw Error(result.error||`Local edit failed (${r.status})`);
       return result;
     }
+    if(liveProducts&&(isProductCreate||isProductEdit))throw Error('This product operation is not allowed in read-only mode.');
     return window.CoffeeAdminDemo.request(path,options);
   }
   let response;
@@ -61,7 +64,7 @@
   state.stats=stats;state.orders=orders.orders;state.products=products.products;
   qs('#nav-pending').textContent=stats.pending;
   const low=state.products.filter(x=>x.active&&x.stock<10);
-  panel(`<div class="${live?'notice-box':'notice-box preview-note'}">${live?'Live admin view: data is retrieved through the protected team API.':editableProducts?'LOCAL DEVELOPMENT EDIT — Inventory and low-stock alerts read Isaac\'s API / MySQL. Only stock, price, sale and visibility changes use the protected LOCAL edit service. This is not production admin login. Orders, discounts and customers remain sample data.':liveProducts?'LOCAL PRODUCT TEST — Inventory and low-stock alerts read from Isaac\'s product API / MySQL. Products are READ-ONLY here. Orders, discounts, customer accounts and order metrics remain browser sample data.':'PREVIEW MODE — This dashboard uses editable sample data in your browser only. It is not connected to your teammates\' checkout or MySQL database. Switch to ?products=live to view local MySQL products in read-only mode.'}</div>
+  panel(`<div class="${live?'notice-box':'notice-box preview-note'}">${live?'Live admin view: data is retrieved through the protected team API.':editableProducts?'LOCAL DEVELOPMENT EDIT — Inventory and low-stock alerts read Isaac\'s API / MySQL. New products and edits to names, descriptions, stock, prices, sales, and visibility use the protected LOCAL edit service. This is not production admin login. Orders, discounts and customers remain sample data.':liveProducts?'LOCAL PRODUCT TEST — Inventory and low-stock alerts read from Isaac\'s product API / MySQL. Products are READ-ONLY here. Orders, discounts, customer accounts and order metrics remain browser sample data.':'PREVIEW MODE — This dashboard uses editable sample data in your browser only. It is not connected to your teammates\' checkout or MySQL database. Switch to ?products=live to view local MySQL products in read-only mode.'}</div>
     <section class="stats">
      ${statsCard('Total orders',stats.orders,'Recorded orders','▤')}${statsCard('Active orders',stats.pending,'Awaiting fulfillment','◷')}
      ${statsCard('Order revenue',money(stats.revenue_cents),'Excluding cancelled orders','＄')}${statsCard('Low stock',liveProducts?low.length:stats.low_stock,liveProducts?'Local MySQL products under 10 units':'Products under 10 units','⚑')}
@@ -81,8 +84,8 @@
  }
  async function showProducts(){
   const d=await endpoint('/api/admin/products');state.products=d.products;
-  const modeText=editableProducts?'LOCAL DEVELOPMENT — edit existing stock, price, sale price and visibility. You will be asked for a separate local admin password.':liveProducts?'LOCAL MYSQL PRODUCTS — read-only. Changes in Workbench appear after Refresh.':'Edit stock, regular pricing, and sale prices.';
-  panel(`<div class="toolbar"><span class="muted">${modeText}</span><span style="flex:1"></span>${editableProducts?'<button class="btn subtle" data-action="dev-logout">Sign out (local)</button>':liveProducts?'':'<button class="btn" data-action="new-product">+ New product</button>'}</div><div class="panel"><div class="panel-top"><div><h2>Products & inventory</h2><small>${d.products.length} records</small></div></div><div class="table-wrap"><table><thead><tr><th>Product</th><th>Price</th><th>Sale</th><th>Stock</th><th>Visible</th><th></th></tr></thead><tbody>${d.products.map(p=>`<tr><td><div class="product-name"><span class="product-icon">☕</span><div><strong>${esc(p.name)}</strong><br><span class="muted">${esc(p.category)}</span></div></div></td><td>${money(p.price_cents)}</td><td>${p.sale_price_cents===null?'—':money(p.sale_price_cents)}</td><td>${p.stock<10?'<span class="alert-qty">':''}${p.stock}${p.stock<10?'</span>':''}</td><td>${p.active?'Yes':'Hidden'}</td><td>${liveProducts&&!editableProducts?'<span class="muted">Read only</span>':button('Edit →','edit-product',`data-id="${p.id}"`)}</td></tr>`).join('')}</tbody></table></div></div>`);
+  const modeText=editableProducts?'LOCAL DEVELOPMENT — add and edit MySQL products with a separate local admin password.':liveProducts?'LOCAL MYSQL PRODUCTS — read-only. Changes in Workbench appear after Refresh.':'Edit stock, regular pricing, and sale prices.';
+  panel(`<div class="toolbar"><span class="muted">${modeText}</span><span style="flex:1"></span>${editableProducts?'<button class="btn" data-action="new-product">+ New product</button><button class="btn subtle" data-action="dev-logout">Sign out (local)</button>':liveProducts?'':'<button class="btn" data-action="new-product">+ New product</button>'}</div><div class="panel"><div class="panel-top"><div><h2>Products & inventory</h2><small>${d.products.length} records</small></div></div><div class="table-wrap"><table><thead><tr><th>Product</th><th>Price</th><th>Sale</th><th>Stock</th><th>Visible</th><th></th></tr></thead><tbody>${d.products.map(p=>`<tr><td><div class="product-name"><span class="product-icon">☕</span><div><strong>${esc(p.name)}</strong><br><span class="muted">${esc(p.category)}</span></div></div></td><td>${money(p.price_cents)}</td><td>${p.sale_price_cents===null?'—':money(p.sale_price_cents)}</td><td>${p.stock<10?'<span class="alert-qty">':''}${p.stock}${p.stock<10?'</span>':''}</td><td>${p.active?'Yes':'Hidden'}</td><td>${liveProducts&&!editableProducts?'<span class="muted">Read only</span>':button('Edit →','edit-product',`data-id="${p.id}"`)}</td></tr>`).join('')}</tbody></table></div></div>`);
  }
  async function showCoupons(){const d=await endpoint('/api/admin/coupons');state.coupons=d.coupons;panel(`<div class="toolbar"><span class="muted">Discount codes used by the checkout system.</span><span style="flex:1"></span><button class="btn" data-action="new-coupon">+ Create discount</button></div><div class="panel"><div class="panel-top"><h2>Discount codes</h2></div><div class="table-wrap"><table><thead><tr><th>Code</th><th>Amount</th><th>Minimum</th><th>Used</th><th>Active</th><th></th></tr></thead><tbody>${d.coupons.map(c=>`<tr><td><strong>${esc(c.code)}</strong></td><td>${c.type==='percent'?`${c.amount}%`:money(c.amount)}</td><td>${money(c.min_subtotal_cents)}</td><td>${c.used_count||0}${c.usage_limit?` / ${c.usage_limit}`:''}</td><td>${c.active?'Yes':'No'}</td><td>${button('Edit →','edit-coupon',`data-id="${c.id}"`)}</td></tr>`).join('')}</tbody></table></div></div>`);}
  async function showUsers(){const d=await endpoint('/api/admin/users');state.users=d.users;panel(`<div class="panel"><div class="panel-top"><div><h2>Customer accounts</h2><small>Edit customer contact details. Passwords are never shown.</small></div></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Email</th><th>Role</th><th>Joined</th><th></th></tr></thead><tbody>${d.users.map(u=>`<tr><td><strong>${esc(u.name)}</strong></td><td>${esc(u.email)}</td><td>${esc(u.role)}</td><td>${date(u.created_at)}</td><td>${button('Edit →','edit-user',`data-id="${u.id}"`)}</td></tr>`).join('')}</tbody></table></div></div>`);}
@@ -108,12 +111,16 @@
  function formDialog(group,item){
   let html='';
   if(group==='product' && editableProducts){
-    if(!item)throw Error('Creating new products is not enabled in local development edit mode');
-    html=`<form class="stack" id="product-form" data-id="${item.id}"><p class="notice-box">Local-only development edit for <strong>${esc(item.name)}</strong>. Other product fields are managed by the team.</p><div class="form-grid">
-     ${formInput('Stock quantity','stock',item.stock,'number','min="0" step="1" max="1000000" required')}
-     ${formInput('Regular price ($)','price',(item.price_cents/100).toFixed(2),'number','min="0.01" step="0.01" required')}
-     ${formInput('Sale price ($; optional)','sale',item.sale_price_cents==null?'':(item.sale_price_cents/100).toFixed(2),'number','min="0.01" step="0.01"')}
-     <label>Visible<select class="field" name="active"><option value="1" ${item.active?'selected':''}>Yes</option><option value="0" ${!item.active?'selected':''}>No</option></select></label></div><div class="form-actions"><button class="btn" type="submit">Save local MySQL changes</button></div></form>`;
+    html=`<form class="stack" id="product-form" data-id="${item?.id||''}"><p class="notice-box">LOCAL TEST DATABASE only. Use an image file already in <strong>assets/images</strong>. No upload feature yet. The team storefront still needs a frontend connection to show newly added products.</p><div class="form-grid">
+     ${formInput('Product name','name',item?.name||'','text','required minlength="2" maxlength="120"')}
+     ${formInput('Category','category',item?.category||'Coffee','text','required maxlength="50"')}
+     <label class="full">Description<textarea class="field" name="description" rows="3" maxlength="1200">${esc(item?.description||'')}</textarea></label>
+     ${formInput('Existing image path','image',item?.image||'/assets/images/Pile_of_coffee_beans.jpeg','text','required maxlength="255"')}
+     ${formInput('Stock quantity','stock',item?.stock??0,'number','min="0" step="1" max="1000000" required')}
+     ${formInput('Regular price ($)','price',((item?.price_cents??1800)/100).toFixed(2),'number','min="0.01" step="0.01" required')}
+     ${formInput('Sale price ($; optional)','sale',item?.sale_price_cents==null?'':(item.sale_price_cents/100).toFixed(2),'number','min="0.01" step="0.01"')}
+     <label>Visible<select class="field" name="active"><option value="1" ${item?.active!==0?'selected':''}>Yes</option><option value="0" ${item?.active===0?'selected':''}>No</option></select></label>
+     </div><div class="form-actions"><button class="btn" type="submit">${item?'Save local MySQL changes':'Create product in local MySQL'}</button></div></form>`;
   }
   else if(group==='product')html=`<form class="stack" id="product-form" data-id="${item?.id||''}"><div class="form-grid">${formInput('Product name','name',item?.name,'text','required minlength="2" maxlength="120"')}${formInput('Category','category',item?.category||'Coffee')}
    <label class="full">Description<textarea class="field" name="description" rows="3">${esc(item?.description||'')}</textarea></label>${formInput('Image path','image',item?.image||'/assets/images/Pile_of_coffee_beans.jpeg','text','required')}${formInput('Stock quantity','stock',item?.stock??0,'number','min="0" step="1" required')}${formInput('Regular price ($)','price',((item?.price_cents||1800)/100).toFixed(2),'number','min="0.01" step="0.01" required')}${formInput('Sale price ($; optional)','sale',item?.sale_price_cents==null?'':(item.sale_price_cents/100).toFixed(2),'number','min="0.01" step="0.01"')}
@@ -137,10 +144,12 @@
    }
    if(btn.dataset.action==='new-product'||btn.dataset.action==='edit-product'){
      if(liveProducts&&!editableProducts)throw Error('Local MySQL products are read-only in this mode.');
-     const item=state.products.find(p=>p.id===Number(btn.dataset.id));
+     const isNew=btn.dataset.action==='new-product';
+     const item=isNew?undefined:state.products.find(p=>p.id===Number(btn.dataset.id));
+     if(!isNew&&!item)throw Error('Product not found; refresh Inventory.');
      if(editableProducts){
        let r;try{r=await fetch('/api/local-admin/session',{credentials:'same-origin'});}catch{throw Error('Local edit service unavailable; restart preview server.');}
-       if(r.status===401){showLocalLogin(item.id);return;}
+       if(r.status===401){showLocalLogin(item?.id??null);return;}
        if(!r.ok)throw Error('Local edit service is not enabled; check backend/.env.');
      }
      formDialog('product',item);return;
@@ -158,7 +167,7 @@
   try{
    if(f.id==='local-login-form'){
      await devRequest('POST','login',{password:d.password});
-     const product=state.products.find(x=>x.id===state.pendingProductId);
+     const product=state.pendingProductId===null?undefined:state.products.find(x=>x.id===state.pendingProductId);
      state.pendingProductId=null;
      formDialog('product',product);
      return;
@@ -170,11 +179,15 @@
    }
    if(f.id==='product-form'){
     if(editableProducts){
-      const prior=state.products.find(x=>x.id===id);
-      if(!prior)throw Error('Product changed; refresh the Inventory tab');
-      const body={stock:Number(d.stock),price_cents:Math.round(Number(d.price)*100),sale_price_cents:d.sale?Math.round(Number(d.sale)*100):null,active:d.active==='1'?1:0,
-        expected:{stock:prior.stock,price_cents:prior.price_cents,sale_price_cents:prior.sale_price_cents,active:prior.active?1:0}};
-      await endpoint(`/api/admin/products/${id}`,{method:'PATCH',body});close();await reload();showNotice('Local MySQL product updated. Check /api/products to verify.');
+      const prior=id?state.products.find(x=>x.id===id):null;
+      if(id&&!prior)throw Error('Product changed; refresh the Inventory tab');
+      const body={name:d.name,description:d.description,category:d.category,image:d.image,
+        stock:Number(d.stock),price_cents:Math.round(Number(d.price)*100),
+        sale_price_cents:d.sale?Math.round(Number(d.sale)*100):null,active:d.active==='1'?1:0};
+      if(prior)body.expected={name:prior.name,description:prior.description,category:prior.category,image:prior.image,
+        stock:prior.stock,price_cents:prior.price_cents,sale_price_cents:prior.sale_price_cents,active:prior.active?1:0};
+      await endpoint(id?`/api/admin/products/${id}`:'/api/admin/products',{method:id?'PATCH':'POST',body});
+      close();await reload();showNotice(`Local MySQL product ${id?'updated':'created'}. Refresh /api/products to verify.`);
     }else{
       const body={name:d.name,description:d.description,category:d.category,image:d.image,stock:Number(d.stock),price_cents:Math.round(Number(d.price)*100),sale_price_cents:d.sale?Math.round(Number(d.sale)*100):null,active:d.active==='1'};
       await endpoint(id?`/api/admin/products/${id}`:'/api/admin/products',{method:id?'PATCH':'POST',body});close();await reload();
