@@ -8,9 +8,17 @@
  const money=v=>`$${(Number(v||0)/100).toFixed(2)}`;
  const date=v=>{const d=new Date(v);return Number.isNaN(+d)?'—':d.toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});};
  const state={tab:'overview',sort:'date-desc',status:'all',search:'',products:[],users:[],coupons:[],orders:[],stats:{},dialogId:null};
- const live=new URL(location.href).searchParams.get('live')==='1';
+ const query=new URL(location.href).searchParams;
+ const live=query.get('live')==='1';
+ const liveProducts=query.get('products')==='live' && !live;
  const endpoint=async(path,options={})=>{
-  if(!live) return window.CoffeeAdminDemo.request(path,options);
+  if(!live){
+    if(liveProducts && path.split('?')[0]==='/api/admin/products'){
+      if(options.method && options.method!=='GET') throw Error('Local MySQL inventory is read-only until admin authentication is ready.');
+      return window.CoffeeAdminProductBridge.listFromTeamApi(fetch, location.hostname);
+    }
+    return window.CoffeeAdminDemo.request(path,options);
+  }
   let response;
   try{response=await fetch(path,{method:options.method||'GET',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:options.body===undefined?undefined:JSON.stringify(options.body)});}
   catch{throw Error('Cannot reach the team API. Check that Express is running.');}
@@ -27,7 +35,7 @@
   qs('#page-title').textContent=tabs[state.tab][0];qs('#breadcrumb').textContent=tabs[state.tab][0];qs('#page-description').textContent=tabs[state.tab][1];
   document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===state.tab));
   qs('#reset-demo').hidden=live;
-  qs('#connection-indicator').textContent=live?'● Live API mode':'● Preview / sample data';qs('#connection-indicator').classList.toggle('live',live);
+  qs('#connection-indicator').textContent=live?'● Live API mode':liveProducts?'● Local MySQL products · read-only':'● Preview / sample data';qs('#connection-indicator').classList.toggle('live',live||liveProducts);
  }
  function statsCard(label,value,detail,icon){return `<article class="stat"><div class="stat-head"><span class="stat-label">${label}</span><span class="stat-icon">${icon}</span></div><strong>${value}</strong><small>${detail}</small></article>`;}
  async function showOverview(){
@@ -35,10 +43,10 @@
   state.stats=stats;state.orders=orders.orders;state.products=products.products;
   qs('#nav-pending').textContent=stats.pending;
   const low=state.products.filter(x=>x.active&&x.stock<10);
-  panel(`<div class="${live?'notice-box':'notice-box preview-note'}">${live?'Live admin view: data is retrieved through the protected team API.':'PREVIEW MODE — This dashboard uses editable sample data in your browser only. It is not connected to your teammates\' checkout or MySQL database. Switch to ?live=1 after integration.'}</div>
+  panel(`<div class="${live?'notice-box':'notice-box preview-note'}">${live?'Live admin view: data is retrieved through the protected team API.':liveProducts?'LOCAL PRODUCT TEST — Inventory and low-stock alerts read from Isaac\'s product API / MySQL. Products are READ-ONLY here. Orders, discounts, customer accounts and order metrics remain browser sample data.':'PREVIEW MODE — This dashboard uses editable sample data in your browser only. It is not connected to your teammates\' checkout or MySQL database. Switch to ?products=live to view local MySQL products in read-only mode.'}</div>
     <section class="stats">
      ${statsCard('Total orders',stats.orders,'Recorded orders','▤')}${statsCard('Active orders',stats.pending,'Awaiting fulfillment','◷')}
-     ${statsCard('Order revenue',money(stats.revenue_cents),'Excluding cancelled orders','＄')}${statsCard('Low stock',stats.low_stock,'Products under 10 units','⚑')}
+     ${statsCard('Order revenue',money(stats.revenue_cents),'Excluding cancelled orders','＄')}${statsCard('Low stock',liveProducts?low.length:stats.low_stock,liveProducts?'Local MySQL products under 10 units':'Products under 10 units','⚑')}
     </section>
     <div class="dashboard-grid">
      <article class="panel"><div class="panel-top"><div><h2>Recent orders</h2><small>Latest customer purchases</small></div><button class="text-button" data-tab="orders">View all →</button></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody>${state.orders.slice(0,6).map(o=>`<tr><td class="id">#${esc(o.id)}</td><td><strong>${esc(o.customer_name)}</strong></td><td>${pill(o.status)}</td><td><strong>${money(o.total_cents)}</strong></td><td>${button('View →','open-order',`data-id="${o.id}"`)}</td></tr>`).join('')||'<tr><td colspan="5">No orders yet.</td></tr>'}</tbody></table></div></article>
@@ -53,10 +61,10 @@
       <select id="order-sort" class="field" aria-label="Sort orders">${[['date-desc','Newest first'],['date-asc','Oldest first'],['customer-asc','Customer A–Z'],['customer-desc','Customer Z–A'],['total-desc','Highest total'],['total-asc','Lowest total']].map(([v,t])=>`<option value="${v}" ${state.sort===v?'selected':''}>${t}</option>`).join('')}</select></div>
     <section class="panel"><div class="panel-top"><div><h2>Order history</h2><small>${result.count} matching orders</small></div></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Placed</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody>${result.orders.map(o=>`<tr><td class="id">#${esc(o.id)}</td><td><strong>${esc(o.customer_name)}</strong><br><span class="muted">${esc(o.customer_email)}</span></td><td>${date(o.created_at)}</td><td>${pill(o.status)}</td><td><strong>${money(o.total_cents)}</strong></td><td>${button('View details →','open-order',`data-id="${o.id}"`)}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No orders match this filter.</td></tr>'}</tbody></table></div></section>`);
  }
- async function showProducts(){const d=await endpoint('/api/admin/products');state.products=d.products;panel(`<div class="toolbar"><span class="muted">Edit stock, regular pricing, and sale prices.</span><span style="flex:1"></span><button class="btn" data-action="new-product">+ New product</button></div><div class="panel"><div class="panel-top"><div><h2>Products & inventory</h2><small>${d.products.length} records</small></div></div><div class="table-wrap"><table><thead><tr><th>Product</th><th>Price</th><th>Sale</th><th>Stock</th><th>Visible</th><th></th></tr></thead><tbody>${d.products.map(p=>`<tr><td><div class="product-name"><span class="product-icon">☕</span><div><strong>${esc(p.name)}</strong><br><span class="muted">${esc(p.category)}</span></div></div></td><td>${money(p.price_cents)}</td><td>${p.sale_price_cents===null?'—':money(p.sale_price_cents)}</td><td>${p.stock<10?'<span class="alert-qty">':''}${p.stock}${p.stock<10?'</span>':''}</td><td>${p.active?'Yes':'Hidden'}</td><td>${button('Edit →','edit-product',`data-id="${p.id}"`)}</td></tr>`).join('')}</tbody></table></div></div>`);}
+ async function showProducts(){const d=await endpoint('/api/admin/products');state.products=d.products;panel(`<div class="toolbar"><span class="muted">${liveProducts?'LOCAL MYSQL PRODUCTS — read-only. Changes made in Workbench will appear after Refresh. Admin writes need authentication.':'Edit stock, regular pricing, and sale prices.'}</span><span style="flex:1"></span>${liveProducts?'':'<button class="btn" data-action="new-product">+ New product</button>'}</div><div class="panel"><div class="panel-top"><div><h2>Products & inventory</h2><small>${d.products.length} records</small></div></div><div class="table-wrap"><table><thead><tr><th>Product</th><th>Price</th><th>Sale</th><th>Stock</th><th>Visible</th><th></th></tr></thead><tbody>${d.products.map(p=>`<tr><td><div class="product-name"><span class="product-icon">☕</span><div><strong>${esc(p.name)}</strong><br><span class="muted">${esc(p.category)}</span></div></div></td><td>${money(p.price_cents)}</td><td>${p.sale_price_cents===null?'—':money(p.sale_price_cents)}</td><td>${p.stock<10?'<span class="alert-qty">':''}${p.stock}${p.stock<10?'</span>':''}</td><td>${p.active?'Yes':'Hidden'}</td><td>${liveProducts?'<span class="muted">Read only</span>':button('Edit →','edit-product',`data-id="${p.id}"`)}</td></tr>`).join('')}</tbody></table></div></div>`);}
  async function showCoupons(){const d=await endpoint('/api/admin/coupons');state.coupons=d.coupons;panel(`<div class="toolbar"><span class="muted">Discount codes used by the checkout system.</span><span style="flex:1"></span><button class="btn" data-action="new-coupon">+ Create discount</button></div><div class="panel"><div class="panel-top"><h2>Discount codes</h2></div><div class="table-wrap"><table><thead><tr><th>Code</th><th>Amount</th><th>Minimum</th><th>Used</th><th>Active</th><th></th></tr></thead><tbody>${d.coupons.map(c=>`<tr><td><strong>${esc(c.code)}</strong></td><td>${c.type==='percent'?`${c.amount}%`:money(c.amount)}</td><td>${money(c.min_subtotal_cents)}</td><td>${c.used_count||0}${c.usage_limit?` / ${c.usage_limit}`:''}</td><td>${c.active?'Yes':'No'}</td><td>${button('Edit →','edit-coupon',`data-id="${c.id}"`)}</td></tr>`).join('')}</tbody></table></div></div>`);}
  async function showUsers(){const d=await endpoint('/api/admin/users');state.users=d.users;panel(`<div class="panel"><div class="panel-top"><div><h2>Customer accounts</h2><small>Edit customer contact details. Passwords are never shown.</small></div></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Email</th><th>Role</th><th>Joined</th><th></th></tr></thead><tbody>${d.users.map(u=>`<tr><td><strong>${esc(u.name)}</strong></td><td>${esc(u.email)}</td><td>${esc(u.role)}</td><td>${date(u.created_at)}</td><td>${button('Edit →','edit-user',`data-id="${u.id}"`)}</td></tr>`).join('')}</tbody></table></div></div>`);}
- async function reload(){renderShell();showNotice('');panel('<div class="loading">Loading…</div>');try{await ({overview:showOverview,orders:showOrders,products:showProducts,coupons:showCoupons,users:showUsers})[state.tab]();}catch(e){panel(`<div class="panel empty"><h2>Cannot load ${esc(state.tab)}</h2><p>${esc(e.message)}</p><p>Live mode requires the admin router, shared database tables, and a valid administrator session.</p></div>`);}}
+ async function reload(){renderShell();showNotice('');panel('<div class="loading">Loading…</div>');try{await ({overview:showOverview,orders:showOrders,products:showProducts,coupons:showCoupons,users:showUsers})[state.tab]();}catch(e){panel(`<div class="panel empty"><h2>Cannot load ${esc(state.tab)}</h2><p>${esc(e.message)}</p><p>${liveProducts?'Local products mode requires the existing Express backend on localhost:3000 and your MySQL database connection.':'Live mode requires the admin router, shared database tables, and a valid administrator session.'}</p></div>`);}}
  function dialog(content,title){qs('#modal').innerHTML=`<div class="overlay"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><header class="dialog-head"><h2 id="dialog-title">${title}</h2><button class="close" data-action="close-modal" aria-label="Close dialog">×</button></header><div class="dialog-body">${content}</div></div></div>`;qs('.dialog button')?.focus();}
  async function openOrder(id){
   const {order:o}=await endpoint(`/api/admin/orders/${id}`),allowed={placed:['processing','cancelled'],processing:['fulfilled','cancelled'],fulfilled:[],cancelled:[]}[o.status]||[];
@@ -87,7 +95,7 @@
    if(btn.id==='reset-demo'){if(!live&&confirm('Reset sample admin data to the original preview?')){CoffeeAdminDemo.reset();await reload();}return;}
    if(btn.dataset.action==='close-modal'){qs('#modal').innerHTML='';return;}
    if(btn.dataset.action==='open-order'){await openOrder(Number(btn.dataset.id));return;}
-   if(btn.dataset.action==='new-product'||btn.dataset.action==='edit-product'){const item=state.products.find(p=>p.id===Number(btn.dataset.id));formDialog('product',item);return;}
+   if(btn.dataset.action==='new-product'||btn.dataset.action==='edit-product'){if(liveProducts)throw Error('Local MySQL products are read-only; administrator authentication is not integrated yet.');const item=state.products.find(p=>p.id===Number(btn.dataset.id));formDialog('product',item);return;}
    if(btn.dataset.action==='new-coupon'||btn.dataset.action==='edit-coupon'){const item=state.coupons.find(c=>c.id===Number(btn.dataset.id));formDialog('coupon',item);return;}
    if(btn.dataset.action==='edit-user'){formDialog('user',state.users.find(u=>u.id===Number(btn.dataset.id)));return;}
   }catch(error){showNotice(error.message);}
