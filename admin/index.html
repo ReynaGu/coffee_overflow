@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>Coffee Overflow — Admin Center</title>
+  <link rel="stylesheet" href="./admin.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Admin navigation">
+      <a class="brand" href="../index.html"><span class="brand-icon">✳</span><span>COFFEE<br><strong>OVERFLOW</strong></span></a>
+      <div class="workspace"><span class="workspace-icon">CO</span><span><strong>Management</strong><small>Group 6 · Admin Center</small></span></div>
+      <div class="nav-title">WORKSPACE</div>
+      <nav id="admin-nav" class="nav">
+        <button class="active" data-tab="overview"><span>◫</span> Overview</button>
+        <button data-tab="orders"><span>▤</span> Orders <span id="nav-pending" class="nav-count"></span></button>
+        <button data-tab="products"><span>◈</span> Inventory</button>
+        <button data-tab="coupons"><span>⌁</span> Discounts</button>
+        <button data-tab="users"><span>♙</span> Customers</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="tip"><span class="tip-icon">ⓘ</span><div><strong>Shared architecture</strong><p>Designed to connect to your group's existing product, customer, and checkout APIs.</p></div></div>
+        <a class="back-link" href="../index.html">← Back to storefront</a>
+      </div>
+    </aside>
+    <div class="main-area">
+      <header class="topbar"><div class="top-left"><button id="mobile-menu" aria-label="Toggle navigation">☰</button><span>Workspace</span><span class="chevron">/</span><strong id="breadcrumb">Overview</strong></div><div class="top-right"><span id="connection-indicator" class="connection-indicator">● Preview mode</span><span class="avatar">HB</span></div></header>
+      <main class="content">
+        <div class="page-heading"><div><span class="eyebrow">COFFEE OVERFLOW / ADMINISTRATION</span><h1 id="page-title">Overview</h1><p id="page-description">A clear view of your shop's operations.</p></div><div class="page-actions"><button id="refresh" class="btn subtle">↻ Refresh</button><button id="reset-demo" class="btn subtle">Reset preview</button></div></div>
+        <div id="notice" role="status" aria-live="polite"></div>
+        <div id="main-panel" aria-live="polite"><div class="loading">Loading dashboard…</div></div>
+      </main>
+      <footer>COFFEE OVERFLOW <span>·</span> CS 3773 <span>·</span> GROUP 6 <span class="right">Admin / Order Management</span></footer>
+    </div>
+  </div>
+  <div id="modal" class="modal-root"></div>
+  <script src="./demo-data.js"></script>
+  <script src="./admin.js"></script>
+</body>
+</html>
