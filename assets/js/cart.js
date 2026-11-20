@@ -45,11 +45,11 @@
     // TODO(BACKEND:product-data): set to true once the products API works.
     // false = use the built-in demo products below.
     // true  = load products from GET {API_BASE}/api/products
-    USE_API: false,
+    USE_API: true,
 
     // TODO(PROTOTYPE): start a first-time visitor with 2 sample items in the cart.
     // Set to false (or delete the seeding code) when real "Add to Cart" works.
-    SEED_DEMO_CART: true,
+    SEED_DEMO_CART: false,
   };
   // Lets a test page override settings without editing this file.
   Object.assign(CONFIG, window.COFFEE_CART_CONFIG || {});
@@ -128,26 +128,28 @@
   let catalog = DEMO_CATALOG.map((p) => ({ ...p }));
 
   // Turns one database row into the shape the cart uses.
+  // COFFEE_OVERFLOW_STORE_BRIDGE_V1: match the local MySQL view's integer-cent fields.
   function fromApiRow(row) {
     const f = FIELD_MAP;
-    const sale = row[f.salePrice];
+    const regular = Number(row.price_cents);
+    const sale = row.sale_price_cents == null ? null : Number(row.sale_price_cents);
+    const image = String(row.image || '');
     return {
       id: String(row[f.id]),
-      name: row[f.name] || "Unnamed product",
-      image: row[f.image] || NO_IMAGE,
-      price: toCents(row[f.price]),
-      salePrice: sale === null || sale === undefined || sale === "" ? null : toCents(sale),
-      stock: Number(row[f.stock]) || 0,
+      name: String(row.name || 'Unnamed product'),
+      image: image.startsWith('/assets/') ? '.' + image : (image.startsWith('https://') ? image : NO_IMAGE),
+      price: Number.isSafeInteger(regular) && regular > 0 ? regular : 0,
+      salePrice: Number.isSafeInteger(sale) && sale > 0 && sale < regular ? sale : null,
+      stock: Math.max(0, Number(row.stock) || 0)
     };
   }
-
   async function loadCatalog() {
     if (!CONFIG.USE_API) return;
     try {
       // TODO(BACKEND:product-data): endpoint exists in backend/src/routes/productRoutes.js
       const res = await fetch(CONFIG.API_BASE + "/api/products");
       if (!res.ok) throw new Error("HTTP " + res.status);
-      catalog = (await res.json()).map(fromApiRow);
+      catalog = (await res.json()).filter(row => Number(row.active) !== 0).map(fromApiRow);
       refreshCartFromCatalog();
     } catch (e) {
       console.error("Could not load products from the API, using demo products.", e);
