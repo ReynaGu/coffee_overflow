@@ -13,9 +13,10 @@
  *   TODO(BACKEND:cart-storage)  where the cart is saved (per logged-in user)
  *   TODO(BACKEND:tax)           tax rate source
  *   TODO(BACKEND:discount-codes) validating a code + its amount/type
- *   TODO(BACKEND:place-order)   saving the order to the database
- *   TODO(BACKEND:stock)         stock re-check / stock reduction on order
- *   TODO(BACKEND:auth)          who is placing the order
+ *   TODO(BACKEND:auth)          who is placing the order (send the shopper's login with POST /api/orders)
+ *
+ * Placing an order calls POST /api/orders (backend/src/checkout/). The server re-prices,
+ * calculates tax, checks + reduces stock and saves orders/order_items in one transaction.
  *   TODO(BACKEND:add-to-cart)   hooking up the "Add to Cart" buttons on products.html
  *   TODO(PROTOTYPE)             demo-only code to delete once the real data exists
  *
@@ -111,7 +112,6 @@
 
   const CART_KEY = "co_cart";
   const CODE_KEY = "co_cart_code";
-  const ORDERS_KEY = "co_orders";
   const SEEDED_KEY = "co_cart_seeded";
 
   function read(key, fallback) {
@@ -485,49 +485,50 @@
   async function placeOrder() {
     if (placing || cart.length === 0) return;
 
-    /* TODO(BACKEND:stock): re-check stock on the SERVER right before saving.
-     * Two shoppers could both have the last mug in their cart. The server must
-     * check quantity again, reduce the stock, and save the order in one
-     * transaction, and reply with an error if something is no longer available. */
+    // Quick check in the browser for a friendly message. The SERVER re-checks stock
+    // inside its transaction (backend/src/checkout/checkoutService.js) - this is not the real check.
     const over = cart.find((l) => l.qty > l.stock);
     if (over) return flash(`Only ${over.stock} of "${over.name}" are available.`, "danger");
-
-    const t = totals();
-    const order = {
-      id: "CO-" + Date.now().toString(36).toUpperCase(),   // TODO(BACKEND:place-order): the database assigns the real order id
-      date: new Date().toISOString(),
-      items: cart.map((l) => ({ id: l.id, name: l.name, qty: l.qty, unit: unitPrice(l), onSale: isOnSale(l) })),
-      code: appliedDetails ? appliedDetails.code : null,
-      subtotal: t.subtotal, discount: t.discount, tax: t.tax, total: t.total,
-    };
 
     placing = true;
     render();
     try {
-      /* TODO(BACKEND:place-order): save the order in the database. Replace the
-       * localStorage lines below with a request like this (endpoint does not exist yet):
-       *
-       *   const res = await fetch(CONFIG.API_BASE + "/api/orders", {
-       *     method: "POST",
-       *     headers: { "Content-Type": "application/json" },
-       *     body: JSON.stringify({
-       *       items: cart.map((l) => ({ product_id: l.id, quantity: l.qty })),
-       *       discount_code: appliedDetails ? appliedDetails.code : null,
-       *       // TODO(BACKEND:auth): also send who is ordering (logged-in user id or token)
-       *     }),
-       *   });
-       *   if (!res.ok) throw new Error((await res.json()).error || "Order failed");
-       *   const saved = await res.json();   // use saved.order_id etc. for the confirmation
-       *
-       * IMPORTANT: send only product ids, quantities and the code. The SERVER must
-       * recalculate prices, sale prices, discount and the 8.25% tax itself - never
-       * trust totals sent from the browser. The admin "current orders / order
-       * history" pages will read what is saved here. */
-      const orders = read(ORDERS_KEY, []);   // TODO(PROTOTYPE): remove with the real POST above
-      orders.push(order);
-      write(ORDERS_KEY, orders);
+      /* Save the order through POST /api/orders (backend/src/checkout/checkoutRoutes.js).
+       * Only product ids, quantities and the code are sent. The server ignores any prices
+       * from the browser and recalculates prices, sale prices and the 8.25% tax itself.
+       * TODO(BACKEND:auth): once shopper login exists, send the login session/token here
+       * (e.g. credentials: "include" + a CORS setup that allows it). Until then the server
+       * answers 401 "Shopper login is not connected yet". */
+      const res = await fetch(CONFIG.API_BASE + "/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          items: cart.map((l) => ({ product_id: Number(l.id), quantity: l.qty })),
+          discount_code: appliedDetails ? appliedDetails.code : null,
+        }),
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) { /* non-JSON reply: handled below */ }
 
-      justOrdered = order;
+      if (!res.ok) {
+        const message = (data && data.error) || "Sorry, we couldn't place your order. Please try again.";
+        flash(message, "danger");
+        // 409 = stock or price changed on the server: reload products so the cart shows the latest stock.
+        if (res.status === 409) await loadCatalog();
+        return;
+      }
+
+      const saved = data && data.order;
+      if (!saved || !Number.isSafeInteger(Number(saved.order_id))) throw new Error("Invalid order receipt from server");
+
+      // The confirmation shows the SERVER's numbers, not the cart's own estimate.
+      justOrdered = {
+        id: String(saved.order_id),
+        date: saved.order_date,
+        items: saved.items.map((i) => ({ id: String(i.product_id), name: i.name, qty: i.quantity, unit: i.unit_price_cents, onSale: i.on_sale })),
+        code: null,
+        subtotal: saved.subtotal_cents, discount: 0, tax: saved.tax_cents, total: saved.total_cents,
+      };
       cart = [];
       appliedCode = null;
       appliedDetails = null;
@@ -535,7 +536,7 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       console.error(e);
-      flash("Sorry, we couldn't place your order. Please try again.", "danger");
+      flash("Sorry, we couldn't reach the order server. Please try again.", "danger");
     } finally {
       placing = false;
       render();
