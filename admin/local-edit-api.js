@@ -5,6 +5,7 @@
  * The team's Express product GET endpoint and all teammate files are unchanged.
  */
 const crypto = require('node:crypto');
+const {createLocalOrderStore}=require('./local-order-store'); // COFFEE_LOCAL_ORDERS_V2
 
 function json(res,status,data,headers={}){
   res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers});
@@ -66,6 +67,7 @@ function createLocalEditApi({password,pool,database,clock=()=>Date.now()}){
   if(database!=='coffee_overflow_dev')throw Error('Local editing is restricted to DB_NAME=coffee_overflow_dev');
   if(!pool || typeof pool.getConnection!=='function')throw Error('MySQL pool required');
   const sessions=new Map(),failures=new Map();
+  const orderStore=createLocalOrderStore(pool);
   const secretName='coffee_local_admin_session';
   function allowedHost(req){
     const h=String(req.headers.host||'');
@@ -145,6 +147,30 @@ function createLocalEditApi({password,pool,database,clock=()=>Date.now()}){
         if(!authed(req))throw fail(401,'Sign in to local development admin first');
         const id=Number(match[1]);if(!Number.isSafeInteger(id)||id<1)throw fail(400,'Invalid product ID');
         return json(res,200,await editProduct(id,validateEdit(await bodyJson(req))));
+      }
+      // LOCAL TEST checkout. Not payment processing; never expose this outside localhost.
+      if(req.method==='POST'&&p==='/api/local-checkout/orders'){
+        checkOrigin(req);
+        return json(res,201,await orderStore.createOrder(await bodyJson(req,16384)));
+      }
+      if(req.method==='GET'&&p==='/api/local-admin/stats'){
+        if(!authed(req))throw fail(401,'Sign in to local development admin first');
+        return json(res,200,await orderStore.stats());
+      }
+      if(req.method==='GET'&&p==='/api/local-admin/orders'){
+        if(!authed(req))throw fail(401,'Sign in to local development admin first');
+        return json(res,200,await orderStore.listOrders({sort:u.searchParams.get('sort')||'date-desc',status:u.searchParams.get('status')||'all',search:u.searchParams.get('search')||''}));
+      }
+      const orderId=p.match(/^\/api\/local-admin\/orders\/(\d+)$/);
+      if(req.method==='GET'&&orderId){
+        if(!authed(req))throw fail(401,'Sign in to local development admin first');
+        return json(res,200,{order:await orderStore.getOrder(Number(orderId[1]))});
+      }
+      const statusId=p.match(/^\/api\/local-admin\/orders\/(\d+)\/status$/);
+      if(req.method==='PATCH'&&statusId){
+        checkOrigin(req);
+        if(!authed(req))throw fail(401,'Sign in to local development admin first');
+        return json(res,200,await orderStore.updateStatus(Number(statusId[1]),await bodyJson(req)));
       }
       return json(res,404,{error:'Local development API route not found'});
     }catch(e){

@@ -12,7 +12,20 @@
  const live=query.get('live')==='1';
  const editableProducts=query.get('products')==='editable' && !live;
  const liveProducts=['live','editable'].includes(query.get('products')) && !live;
+ const localOrders=!live&&editableProducts&&query.get('orders')==='local'; // COFFEE_LOCAL_ORDERS_V2
  const endpoint=async(path,options={})=>{
+  if(localOrders && (path==='/api/admin/stats'||/^\/api\/admin\/orders(?:\/|\?|$)/.test(path))){
+   const method=options.method||'GET';
+   if(!['GET','PATCH'].includes(method))throw Error('Unsupported local order operation');
+   let r;try{r=await fetch(path.replace('/api/admin/','/api/local-admin/'),{
+     method,credentials:'same-origin',headers:{'Content-Type':'application/json','X-Coffee-Dev':'1'},
+     body:options.body===undefined?undefined:JSON.stringify(options.body)
+   });}catch{throw Error('Local order service is offline. Restart the admin preview server.');}
+   let payload;try{payload=await r.json();}catch{throw Error('Local order API returned an invalid response. Create the local_dev_* tables first.');}
+   if(r.status===401)throw Error('LOCAL_ORDER_LOGIN_REQUIRED');
+   if(!r.ok)throw Error(payload.error||'Local order request failed');
+   return payload;
+  }
   if(!live){
     if(liveProducts && path.split('?')[0]==='/api/admin/products' && (!options.method || options.method==='GET')){
       return window.CoffeeAdminProductBridge.listFromTeamApi(fetch, location.hostname);
@@ -57,6 +70,7 @@
   document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===state.tab));
   qs('#reset-demo').hidden=live;
   qs('#connection-indicator').textContent=live?'● Live API mode':editableProducts?'● Local MySQL · development edits':liveProducts?'● Local MySQL products · read-only':'● Preview / sample data';qs('#connection-indicator').classList.toggle('live',live||liveProducts);
+  if(localOrders){qs('#connection-indicator').textContent='● Local MySQL · TEST orders + inventory';qs('#reset-demo').hidden=true;}
  }
  function statsCard(label,value,detail,icon){return `<article class="stat"><div class="stat-head"><span class="stat-label">${label}</span><span class="stat-icon">${icon}</span></div><strong>${value}</strong><small>${detail}</small></article>`;}
  async function showOverview(){
@@ -64,7 +78,7 @@
   state.stats=stats;state.orders=orders.orders;state.products=products.products;
   qs('#nav-pending').textContent=stats.pending;
   const low=state.products.filter(x=>x.active&&x.stock<10);
-  panel(`<div class="${live?'notice-box':'notice-box preview-note'}">${live?'Live admin view: data is retrieved through the protected team API.':editableProducts?'LOCAL DEVELOPMENT EDIT — Inventory and low-stock alerts read Isaac\'s API / MySQL. New products and edits to names, descriptions, stock, prices, sales, and visibility use the protected LOCAL edit service. This is not production admin login. Orders, discounts and customers remain sample data.':liveProducts?'LOCAL PRODUCT TEST — Inventory and low-stock alerts read from Isaac\'s product API / MySQL. Products are READ-ONLY here. Orders, discounts, customer accounts and order metrics remain browser sample data.':'PREVIEW MODE — This dashboard uses editable sample data in your browser only. It is not connected to your teammates\' checkout or MySQL database. Switch to ?products=live to view local MySQL products in read-only mode.'}</div>
+  panel(`<div class="${live?'notice-box':'notice-box preview-note'}">${live?'Live admin view: data is retrieved through the protected team API.':editableProducts?'LOCAL DEVELOPMENT EDIT — Inventory and low-stock alerts read Isaac\'s API / MySQL. New products and edits to names, descriptions, stock, prices, sales, and visibility use the protected LOCAL edit service. This is not production admin login. Orders are saved in local MySQL only when orders=local (TEST mode, no payment). Discounts and customers remain sample data.':liveProducts?'LOCAL PRODUCT TEST — Inventory and low-stock alerts read from Isaac\'s product API / MySQL. Products are READ-ONLY here. Orders, discounts, customer accounts and order metrics remain browser sample data.':'PREVIEW MODE — This dashboard uses editable sample data in your browser only. It is not connected to your teammates\' checkout or MySQL database. Switch to ?products=live to view local MySQL products in read-only mode.'}</div>
     <section class="stats">
      ${statsCard('Total orders',stats.orders,'Recorded orders','▤')}${statsCard('Active orders',stats.pending,'Awaiting fulfillment','◷')}
      ${statsCard('Order revenue',money(stats.revenue_cents),'Excluding cancelled orders','＄')}${statsCard('Low stock',liveProducts?low.length:stats.low_stock,liveProducts?'Local MySQL products under 10 units':'Products under 10 units','⚑')}
@@ -89,7 +103,7 @@
  }
  async function showCoupons(){const d=await endpoint('/api/admin/coupons');state.coupons=d.coupons;panel(`<div class="toolbar"><span class="muted">Discount codes used by the checkout system.</span><span style="flex:1"></span><button class="btn" data-action="new-coupon">+ Create discount</button></div><div class="panel"><div class="panel-top"><h2>Discount codes</h2></div><div class="table-wrap"><table><thead><tr><th>Code</th><th>Amount</th><th>Minimum</th><th>Used</th><th>Active</th><th></th></tr></thead><tbody>${d.coupons.map(c=>`<tr><td><strong>${esc(c.code)}</strong></td><td>${c.type==='percent'?`${c.amount}%`:money(c.amount)}</td><td>${money(c.min_subtotal_cents)}</td><td>${c.used_count||0}${c.usage_limit?` / ${c.usage_limit}`:''}</td><td>${c.active?'Yes':'No'}</td><td>${button('Edit →','edit-coupon',`data-id="${c.id}"`)}</td></tr>`).join('')}</tbody></table></div></div>`);}
  async function showUsers(){const d=await endpoint('/api/admin/users');state.users=d.users;panel(`<div class="panel"><div class="panel-top"><div><h2>Customer accounts</h2><small>Edit customer contact details. Passwords are never shown.</small></div></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Email</th><th>Role</th><th>Joined</th><th></th></tr></thead><tbody>${d.users.map(u=>`<tr><td><strong>${esc(u.name)}</strong></td><td>${esc(u.email)}</td><td>${esc(u.role)}</td><td>${date(u.created_at)}</td><td>${button('Edit →','edit-user',`data-id="${u.id}"`)}</td></tr>`).join('')}</tbody></table></div></div>`);}
- async function reload(){renderShell();showNotice('');panel('<div class="loading">Loading…</div>');try{await ({overview:showOverview,orders:showOrders,products:showProducts,coupons:showCoupons,users:showUsers})[state.tab]();}catch(e){panel(`<div class="panel empty"><h2>Cannot load ${esc(state.tab)}</h2><p>${esc(e.message)}</p><p>${liveProducts?'Local products mode requires the existing Express backend on localhost:3000 and your MySQL database connection.':'Live mode requires the admin router, shared database tables, and a valid administrator session.'}</p></div>`);}}
+ async function reload(){renderShell();showNotice('');panel('<div class="loading">Loading…</div>');try{await ({overview:showOverview,orders:showOrders,products:showProducts,coupons:showCoupons,users:showUsers})[state.tab]();}catch(e){if(localOrders&&e.message==='LOCAL_ORDER_LOGIN_REQUIRED'){panel('<div class="panel empty"><h2>Local MySQL orders sign-in</h2><p>Use the same protected local development admin password as Inventory.</p><button class="btn" data-action="local-orders-login">Sign in to view test orders</button></div>');return;}panel(`<div class="panel empty"><h2>Cannot load ${esc(state.tab)}</h2><p>${esc(e.message)}</p><p>${liveProducts?'Local products mode requires the existing Express backend on localhost:3000 and your MySQL database connection.':'Live mode requires the admin router, shared database tables, and a valid administrator session.'}</p></div>`);}}
  function dialog(content,title){qs('#modal').innerHTML=`<div class="overlay"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><header class="dialog-head"><h2 id="dialog-title">${title}</h2><button class="close" data-action="close-modal" aria-label="Close dialog">×</button></header><div class="dialog-body">${content}</div></div></div>`;qs('.dialog button')?.focus();}
  async function openOrder(id){
   const {order:o}=await endpoint(`/api/admin/orders/${id}`),allowed={placed:['processing','cancelled'],processing:['fulfilled','cancelled'],fulfilled:[],cancelled:[]}[o.status]||[];
@@ -101,6 +115,7 @@
    <div class="detail-bottom"><div><h3 class="section-label">Order activity</h3><ol class="timeline">${events||'<li>No history available</li>'}</ol></div><div><h3 class="section-label">Fulfillment actions</h3>${allowed.length?`<form class="stack" id="status-form" data-id="${o.id}"><label>Next status<select class="field" name="status">${allowed.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></label><label>Internal note<textarea class="field" name="note" rows="3" maxlength="250" placeholder="Optional note…"></textarea></label><button class="btn" type="submit">Save status update</button></form>`:'<div class="notice-box">This order is final. No further changes are allowed.</div>'}</div></div>`,`Order #${esc(o.id)}`);
  }
  const formInput=(label,name,value='',type='text',extra='')=>`<label>${label}<input class="field" type="${type}" name="${name}" value="${esc(value)}" ${extra}></label>`;
+ function showLocalOrdersLogin(){dialog('<form class="stack" id="local-order-login-form"><p class="notice-box">These are LOCAL TEST orders stored in coffee_overflow_dev. No payments are processed.</p><label>Local development admin password<input type="password" name="password" class="field" required minlength="12" autocomplete="off"></label><div class="form-actions"><button class="btn" type="submit">Sign in</button></div></form>','Local MySQL test orders');}
  function showLocalLogin(productId){
   state.pendingProductId=productId;
   dialog(`<form class="stack" id="local-login-form"><p class="notice-box">This password protects only your local <strong>coffee_overflow_dev</strong> test database. It is not the team's production login.</p>
@@ -138,6 +153,7 @@
    if(btn.id==='refresh'){await reload();return;}
    if(btn.id==='reset-demo'){if(!live&&confirm('Reset sample admin data to the original preview?')){CoffeeAdminDemo.reset();await reload();}return;}
    if(btn.dataset.action==='close-modal'){qs('#modal').innerHTML='';return;}
+   if(btn.dataset.action==='local-orders-login'){showLocalOrdersLogin();return;}
    if(btn.dataset.action==='open-order'){await openOrder(Number(btn.dataset.id));return;}
    if(btn.dataset.action==='dev-logout'){
      await devRequest('POST','logout');showNotice('Signed out of local development editing.');return;
@@ -161,10 +177,11 @@
  document.addEventListener('change',e=>{if(e.target.id==='order-sort'){state.sort=e.target.value;reload();}else if(e.target.id==='order-status'){state.status=e.target.value;reload();}});
  let delay;document.addEventListener('input',e=>{if(e.target.id==='order-search'){state.search=e.target.value;clearTimeout(delay);delay=setTimeout(()=>reload(),400);}});
  document.addEventListener('submit',async e=>{
-  if(!['local-login-form','status-form','product-form','coupon-form','user-form'].includes(e.target.id))return;
+  if(!['local-login-form','local-order-login-form','status-form','product-form','coupon-form','user-form'].includes(e.target.id))return;
   e.preventDefault();const f=e.target,d=Object.fromEntries(new FormData(f));
   const id=Number(f.dataset.id);const close=()=>qs('#modal').innerHTML='';
   try{
+   if(f.id==='local-order-login-form'){await devRequest('POST','login',{password:d.password});close();await reload();return;}
    if(f.id==='local-login-form'){
      await devRequest('POST','login',{password:d.password});
      const product=state.pendingProductId===null?undefined:state.products.find(x=>x.id===state.pendingProductId);

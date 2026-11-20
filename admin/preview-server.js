@@ -38,7 +38,7 @@ function staticAllowed(name){
 function createServer(){return http.createServer((req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
-    if(url.pathname.startsWith('/api/local-admin/')){
+    if(url.pathname.startsWith('/api/local-admin/')||url.pathname.startsWith('/api/local-checkout/')){ // COFFEE_LOCAL_ORDERS_V2
       if(!localApi){res.writeHead(404);res.end('Not enabled');return;}
       localApi.handle(req,res);return;
     }
