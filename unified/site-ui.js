@@ -5,7 +5,12 @@
   function tag(name,attrs,text){const e=document.createElement(name);for(const [key,value] of Object.entries(attrs||{}))e.setAttribute(key,value);if(text!==undefined)e.textContent=text;return e;}
   async function getSession(){const r=await fetch('/api/auth/session',{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw Error('Session API unavailable');return r.json();}
   document.addEventListener('DOMContentLoaded',async()=>{
-    const banner=tag('div',{role:'status',style:'background:#fff2cf;color:#45320c;padding:8px 16px;text-align:center;font:14px/1.4 sans-serif'},'LOCAL INTEGRATION TEST — synthetic accounts, one fixture coffee product, no payments');
+    document.head.appendChild(tag('link',{rel:'stylesheet',href:'/unified/phase3-polish.css'}));
+    if(document.getElementById('cart-root')){
+      const intro=document.querySelector('main section .lead');
+      if(intro && intro.textContent.includes('apply a discount code')) intro.textContent='Review your items and place a test order. No real payment is collected.';
+    }
+    const banner=tag('div',{role:'status',style:'background:#fff2cf;color:#45320c;padding:8px 16px;text-align:center;font:14px/1.4 sans-serif'},'LOCAL INTEGRATION TEST — synthetic accounts and catalog; no real payments');
     document.body.prepend(banner);
     const nav=document.querySelector('nav');
     if(!nav)return;

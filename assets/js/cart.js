@@ -178,7 +178,7 @@
    * browser until the order is placed). If the team wants carts saved per user, load
    * and save it through the API here instead, keyed by the logged-in user. */
   let cart = read(CART_KEY, []);          // [{ id, name, image, price, salePrice, stock, qty }]
-  let appliedCode = read(CODE_KEY, null); // e.g. "COFFEE10"
+  let appliedCode = CONFIG.HIDE_DEMO_DISCOUNTS ? null : read(CODE_KEY, null); // Demo discounts are never accepted by unified checkout
   let justOrdered = null;                 // last placed order, for the confirmation view
   let placing = false;                    // blocks double-clicking Place Order
 
@@ -316,6 +316,7 @@
   // before the products page is wired up. DELETE this function and its call in
   // render() once the "Add to Cart" buttons on products.html call CoffeeCart.add().
   function addBoxHtml() {
+    if (CONFIG.HIDE_PROTOTYPE_ADD_BOX) return '';
     const opts = catalog.map((p) =>
       `<option value="${esc(p.id)}" ${p.stock <= 0 ? "disabled" : ""}>${esc(p.name)} - ${fmt(unitPrice(p))}${p.stock <= 0 ? " (out of stock)" : ""}</option>`).join("");
     return `
@@ -373,7 +374,7 @@
           <button type="button" class="btn btn-primary btn-lg" data-act="place-order" ${overStock || placing ? "disabled" : ""}>
             ${placing ? "Placing order..." : "Place Order"}</button>
         </div>
-        <p class="text-xs text-muted mt-3 mb-0">Tax is calculated after any discount.</p>
+        <p class="text-xs text-muted mt-3 mb-0">${CONFIG.HIDE_DEMO_DISCOUNTS ? "Final prices and tax are verified by the server at checkout." : "Tax is calculated after any discount."}</p>
       </div>`;
   }
 

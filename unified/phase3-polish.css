@@ -1,0 +1,4 @@
+/* Local unified website only. The backend deliberately rejects demo discount codes. */
+#code-form { display: none !important; }
+/* Keep the cart focused on shopping from the functioning Products page. */
+#add-form { display: none !important; }
