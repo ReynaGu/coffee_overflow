@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Coffee Overflow — Shared Orders Read-Only Preview</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+  <script src="/admin/shared-orders-preview.js" defer></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" aria-label="Preview navigation">
+    <div class="brand"><span class="brand-icon">✳</span><span>COFFEE<br><strong>OVERFLOW</strong></span></div>
+    <div class="workspace"><span class="workspace-icon">CO</span><span><strong>Integration review</strong><small>Group 6 · Local MySQL</small></span></div>
+    <div class="nav-title">READ-ONLY WORKSPACE</div>
+    <nav class="nav">
+      <button type="button" data-tab="overview" class="active"><span>◫</span> Overview</button>
+      <button type="button" data-tab="orders"><span>▤</span> Orders <span class="nav-count" id="nav-pending"></span></button>
+    </nav>
+    <div class="sidebar-bottom"><div class="tip"><span class="tip-icon">ⓘ</span><div><strong>Integration test only</strong><p>Reyna's shared schema + Jalen's saved checkout orders + Hudson's order adapter. No account login or order editing in this preview.</p></div></div></div>
+  </aside>
+  <div class="main-area">
+    <header class="topbar"><div class="top-left"><strong>Coffee Overflow</strong><span class="chevron">/</span><span id="breadcrumb">Overview</span></div><div class="top-right"><span class="connection-indicator live">● Isolated shared MySQL · READ ONLY</span><button type="button" class="btn subtle" id="logout">Sign out</button></div></header>
+    <main class="content">
+      <div class="page-heading"><div><span class="eyebrow">INTEGRATION / READ-ONLY PREVIEW</span><h1 id="page-title">Overview</h1><p>Shared checkout orders from the isolated MySQL integration database.</p></div><div class="page-actions"><button type="button" id="refresh" class="btn subtle">↻ Refresh</button></div></div>
+      <div id="notice" role="status" aria-live="polite"></div>
+      <div class="notice-box preview-note">This is a separate <strong>local development viewer</strong>, not the production admin app. The API accepts GET requests only. Checkout, status editing, discounts, and customer management are intentionally disabled.</div>
+      <section class="panel" id="signin"><div class="panel-top"><h2>Temporary preview sign-in</h2></div><form id="signin-form" class="stack dialog-body"><label>Access code printed in Command Prompt<input class="field" name="code" type="password" autocomplete="off" required></label><div><button type="submit" class="btn">Unlock read-only preview</button></div></form></section>
+      <div id="main-panel" hidden></div>
+    </main>
+    <footer>COFFEE OVERFLOW <span>·</span> CS 3773 <span>·</span> GROUP 6 <span class="right">Local shared-order integration review</span></footer>
+  </div>
+</div>
+<div id="modal" class="modal-root"></div>
+</body></html>
