@@ -4,7 +4,8 @@
  * Never treats a client-side active filter as authorization: production API must enforce visibility.
  */
 (function (root) {
-  const API_URL = 'http://localhost:3000/api/products';
+  const API_URL = (typeof window !== 'undefined' && window.COFFEE_UNIFIED_PREVIEW === true)
+    ? window.location.origin + '/api/products' : 'http://localhost:3000/api/products';
   const normalize = (row) => {
     if (!row || typeof row !== 'object') return null;
     const id = Number(row.product_id ?? row.id);

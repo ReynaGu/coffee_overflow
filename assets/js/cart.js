@@ -506,6 +506,10 @@
         items: cart.map((l) => ({ product_id: Number(l.id), quantity: l.qty })),
         discount_code: appliedDetails ? appliedDetails.code : null,
       };
+      if (window.COFFEE_UNIFIED_PREVIEW === true && appliedDetails) {
+        flash('Discount codes are not supported in the local integration test. Remove the code before checking out.', 'warning');
+        return;
+      }
       const fingerprint = JSON.stringify(checkoutBody);
       let pending = read(CHECKOUT_REQUEST_KEY, null);
       if (!pending || pending.fingerprint !== fingerprint || !pending.token) {
@@ -516,9 +520,25 @@
         // Do not place an order if retry state cannot be persisted.
         localStorage.setItem(CHECKOUT_REQUEST_KEY, JSON.stringify(pending));
       }
+      // Unified local website: keep the HttpOnly session cookie and verify
+      // same-origin authenticated session + tab-scoped CSRF before checkout.
+      // The normal team checkout remains unchanged when the preview flag is off.
+      const requestHeaders = { "Content-Type": "application/json", Accept: "application/json" };
+      if (window.COFFEE_UNIFIED_PREVIEW === true) {
+        const csrf = sessionStorage.getItem('co_unified_csrf_v1');
+        if (!csrf) { flash('Sign in on the Account page before checkout.', 'warning'); return; }
+        const sessionResponse = await fetch(CONFIG.API_BASE + '/api/auth/session', {credentials:'same-origin',cache:'no-store'});
+        if (!sessionResponse.ok) throw new Error('Could not verify customer login');
+        const session = await sessionResponse.json();
+        if (!session.authenticated || session.user?.role !== 'customer') {
+          sessionStorage.removeItem('co_unified_csrf_v1');
+          flash('Your customer session has expired. Sign in again.', 'warning'); return;
+        }
+        requestHeaders['X-Coffee-CSRF'] = csrf;
+      }
       const res = await fetch(CONFIG.API_BASE + "/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        method: "POST", credentials: "same-origin",
+        headers: requestHeaders,
         body: JSON.stringify({ ...checkoutBody, client_token: pending.token }),
       });
       let data = null;

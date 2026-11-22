@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Customer Account | Coffee Overflow</title>
+<link rel="stylesheet" href="/assets/css/main.css">
+<link rel="stylesheet" href="/unified/login.css"><script defer src="/unified/login.js"></script></head>
+<body><header class="account-header"><a href="/">COFFEE OVERFLOW</a><nav><a href="/products.html">Products</a><a href="/cart.html">Cart</a><a href="/integration/admin/">Administrator</a></nav></header>
+<main class="account-main"><p class="test-callout">LOCAL TEST ONLY — Use a synthetic @example.test email and a unique test password. No real payments, customer accounts, or production deployment.</p>
+<h1>Customer Account</h1><p id="message" role="status" aria-live="polite">Register a synthetic test customer or sign in to place a test order.</p>
+<div class="account-grid">
+<section><h2>Register</h2><form id="register-form">
+<label>First name<input name="first_name" value="Integration" required maxlength="50"></label><label>Last name<input name="last_name" value="Shopper" required maxlength="50"></label>
+<label>Test email<input name="email" id="reg-email" type="email" required maxlength="50"></label><label>Password (at least 12 characters)<input name="password" type="password" autocomplete="new-password" minlength="12" required></label>
+<label>Street (fictional)<input name="street" value="1 Example Road" maxlength="50" required></label><label>City (fictional)<input name="city" value="Test City" maxlength="50" required></label><label>State<input name="state" value="TX" maxlength="15" required></label><label>ZIP<input name="zip_code" value="78253" pattern="[0-9]{5}" required></label>
+<button type="submit">Register test account</button></form></section>
+<section><h2>Sign in</h2><form id="login-form"><label>Test email<input name="email" id="login-email" type="email" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in</button></form>
+<div id="signed-in" hidden><p id="signed-in-status"></p><a class="account-action" href="/products.html">Browse products</a><a class="account-action" href="/cart.html">Go to cart</a><button type="button" id="logout">Sign out</button></div></section>
+</div></main></body></html>
