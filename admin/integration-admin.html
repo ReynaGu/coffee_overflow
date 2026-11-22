@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coffee Overflow — Protected Admin Preview</title>
+<link rel="stylesheet" href="/integration/admin/ui.css">
+<script defer src="/integration/admin/ui.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="sun" aria-hidden="true">✳</span><span>COFFEE<br><b>OVERFLOW</b></span></div>
+  <span class="environment">LOCAL SHARED MYSQL · ADMIN-ONLY TEST</span>
+  <a href="/integration/" class="shop-link">Customer test shop</a>
+</header>
+<main class="container">
+  <div class="heading"><p class="eyebrow">INTEGRATION / VERIFIED ADMINISTRATION</p><h1>Order Management</h1><p>Real shared MySQL orders. Changes require an authenticated administrator session and a valid CSRF token.</p></div>
+  <div class="warning">Isolated development preview. No payment processing, public admin provisioning, or production deployment. Do not use real customer information.</div>
+  <p id="message" role="status" aria-live="polite" class="notice">Sign in with the test-only administrator account printed in Command Prompt.</p>
+  <section id="login-area" class="panel login-panel">
+    <h2>Administrator sign-in</h2>
+    <form id="login-form">
+      <label>Test administrator email <input name="email" type="email" autocomplete="username" required placeholder="co-admin-…@example.test"></label>
+      <label>Test password <input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit">Sign in as administrator</button>
+    </form>
+  </section>
+  <div id="workspace" hidden>
+    <div class="toolbar"><span id="identity">Verified admin</span><button id="refresh" type="button">Refresh orders</button><button id="logout" type="button">Sign out</button></div>
+    <div id="stats" class="stats" aria-label="Order statistics"></div>
+    <section class="panel">
+      <div class="panel-head"><div><h2>Shared order history</h2><p>Orders are loaded from the protected Express admin API.</p></div><div class="filters"><label class="sr-only" for="filter">Status</label><select id="filter"><option value="all">All statuses</option><option value="active">Active orders</option><option value="placed">Placed</option><option value="processing">Processing</option><option value="fulfilled">Fulfilled</option><option value="cancelled">Cancelled</option></select></div></div>
+      <div id="orders" class="orders">Loading…</div>
+    </section>
+    <section class="panel details" id="details" hidden><div class="panel-head"><h2>Order details</h2><button id="close-details" type="button">Close</button></div><div id="detail-content"></div></section>
+  </div>
+</main>
+<footer>COFFEE OVERFLOW · CS 3773 · LOCAL INTEGRATION TEST</footer>
+</body>
+</html>
