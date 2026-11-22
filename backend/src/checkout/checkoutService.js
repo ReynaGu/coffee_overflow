@@ -16,6 +16,7 @@
  */
 const { SCHEMA } = require('./checkoutSchema');
 const { toDecimal, unitPriceCents, orderTotals } = require('./pricing');
+const { validateCheckoutToken, claimCheckoutRequest, storeCheckoutReceipt } = require('./checkoutIdempotency');
 
 const MAX_LINES = 20;
 const MAX_QTY_PER_LINE = 20;
@@ -81,7 +82,7 @@ function buildSql(s = SCHEMA) {
   };
 }
 
-function createCheckoutService(pool, { now = () => new Date() } = {}) {
+function createCheckoutService(pool, { now = () => new Date(), requireIdempotencyToken = false } = {}) {
   if (!pool || typeof pool.getConnection !== 'function') throw new Error('Shared mysql2 pool required');
   const SQL = buildSql();
 
@@ -89,10 +90,21 @@ function createCheckoutService(pool, { now = () => new Date() } = {}) {
     const userId = positiveInt(shopper && shopper.id);
     if (!userId) throw httpError(401, 'Please log in to place an order');
     const { items } = validateOrderRequest(body);
+    // The team Express route requires tokens. Existing isolated smoke scripts
+    // may omit them to preserve their original one-off test behavior.
+    const token = requireIdempotencyToken ? validateCheckoutToken(body.client_token) : null;
 
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      let claim = null;
+      if (token) {
+        claim = await claimCheckoutRequest(conn, { token, userId, items });
+        if (claim.replay) {
+          await conn.commit();
+          return { ...claim.replay, replayed: true };
+        }
+      }
 
       // 1 + 2: lock and re-price every line from the database.
       const lines = [];
@@ -138,10 +150,9 @@ function createCheckoutService(pool, { now = () => new Date() } = {}) {
         await conn.execute(SQL.insertItem, [orderId, line.productId, line.quantity, toDecimal(line.unitCents)]);
       }
 
-      await conn.commit();
-
-      // 5: receipt for the confirmation page (cents, so the cart can format it).
-      return {
+      // 5: persist the receipt in the SAME transaction as the order and stock.
+      // This makes a retry return the original result even after a lost response.
+      const receipt = {
         order_id: orderId,
         order_date: orderDate.toISOString(),
         items: lines.map((l) => ({
@@ -157,6 +168,9 @@ function createCheckoutService(pool, { now = () => new Date() } = {}) {
         tax_cents: totals.taxCents,
         total_cents: totals.totalCents
       };
+      if (claim) await storeCheckoutReceipt(conn, claim, receipt);
+      await conn.commit();
+      return claim ? { ...receipt, replayed: false } : receipt;
     } catch (error) {
       try { await conn.rollback(); } catch { /* keep original error */ }
       throw error;

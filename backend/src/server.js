@@ -31,7 +31,7 @@ app.use('/api/products', productRoutes);
 // Checkout route: POST /api/orders re-prices the cart on the server and saves orders/order_items while reducing stock.
 // Returns 401 for every request until shopperAuthNotConfigured is replaced with the real shopper login middleware.
 app.use('/api/orders', createCheckoutRouter({
-  service: createCheckoutService(pool),
+  service: createCheckoutService(pool, { requireIdempotencyToken: true }),
   identifyShopper: shopperAuthNotConfigured // swap in the real shopper login check
 }));
 

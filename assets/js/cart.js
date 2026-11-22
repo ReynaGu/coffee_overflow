@@ -112,6 +112,7 @@
 
   const CART_KEY = "co_cart";
   const CODE_KEY = "co_cart_code";
+  const CHECKOUT_REQUEST_KEY = "co_checkout_request_v1";
   const SEEDED_KEY = "co_cart_seeded";
 
   function read(key, fallback) {
@@ -499,13 +500,26 @@
        * TODO(BACKEND:auth): once shopper login exists, send the login session/token here
        * (e.g. credentials: "include" + a CORS setup that allows it). Until then the server
        * answers 401 "Shopper login is not connected yet". */
+      // Store one durable token per cart payload. A network retry reuses the
+      // token so the server cannot create the same purchase twice.
+      const checkoutBody = {
+        items: cart.map((l) => ({ product_id: Number(l.id), quantity: l.qty })),
+        discount_code: appliedDetails ? appliedDetails.code : null,
+      };
+      const fingerprint = JSON.stringify(checkoutBody);
+      let pending = read(CHECKOUT_REQUEST_KEY, null);
+      if (!pending || pending.fingerprint !== fingerprint || !pending.token) {
+        if (!window.crypto || typeof window.crypto.randomUUID !== "function") {
+          throw new Error("A secure browser checkout token is unavailable");
+        }
+        pending = { fingerprint, token: window.crypto.randomUUID() };
+        // Do not place an order if retry state cannot be persisted.
+        localStorage.setItem(CHECKOUT_REQUEST_KEY, JSON.stringify(pending));
+      }
       const res = await fetch(CONFIG.API_BASE + "/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          items: cart.map((l) => ({ product_id: Number(l.id), quantity: l.qty })),
-          discount_code: appliedDetails ? appliedDetails.code : null,
-        }),
+        body: JSON.stringify({ ...checkoutBody, client_token: pending.token }),
       });
       let data = null;
       try { data = await res.json(); } catch (e) { /* non-JSON reply: handled below */ }
@@ -533,6 +547,8 @@
       appliedCode = null;
       appliedDetails = null;
       saveCart();
+      // Successful receipt acknowledged: a NEW purchase needs a NEW token.
+      try { localStorage.removeItem(CHECKOUT_REQUEST_KEY); } catch (_) { /* local storage may be disabled later */ }
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       console.error(e);
