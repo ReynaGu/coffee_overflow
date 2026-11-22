@@ -1,0 +1,11 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');
+const {permittedTestEmail,permittedTestOrder,normalizeFixtureProduct}=require('./integrationRules');
+test('accepts synthetic test email',()=>assert.equal(permittedTestEmail('co-browser-abc123@example.test'),true));
+test('rejects personal email',()=>assert.equal(permittedTestEmail('user@gmail.com'),false));
+test('rejects too-short and injected fixture emails',()=>{assert.equal(permittedTestEmail('co-browser-x@example.test'),false);assert.equal(permittedTestEmail('co-browser-abcdef@example.test\nother'),false);});
+test('accepts exact one-item checkout request',()=>assert.equal(permittedTestOrder({items:[{product_id:1,quantity:1}],client_token:'abc'}),true));
+test('rejects multiple items and inflated quantities',()=>{assert.equal(permittedTestOrder({items:[{product_id:1,quantity:1},{product_id:2,quantity:1}],client_token:'x'}),false);assert.equal(permittedTestOrder({items:[{product_id:1,quantity:20}],client_token:'x'}),false);});
+test('rejects other products and discounts',()=>{assert.equal(permittedTestOrder({items:[{product_id:2,quantity:1}],client_token:'x'}),false);assert.equal(permittedTestOrder({items:[{product_id:1,quantity:1}],client_token:'x',discount_code:'FREE'}),false);});
+test('converts fixture database decimal into cents without trusting the browser',()=>{assert.deepEqual(normalizeFixtureProduct({product_id:1,name:'Checkout Integration Test Coffee',price:'18.00',stock_quantity:10,description:'Test'}),{product_id:1,name:'Checkout Integration Test Coffee',price_cents:1800,stock:10,description:'Test'});});
+test('rejects missing or invalid fixture data',()=>{assert.throws(()=>normalizeFixtureProduct(undefined));assert.throws(()=>normalizeFixtureProduct({product_id:3,price:18,stock_quantity:10}));assert.throws(()=>normalizeFixtureProduct({product_id:1,price:18,stock_quantity:-1}));});

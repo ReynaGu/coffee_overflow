@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Coffee Overflow — Integrated Login + Checkout Preview</title>
+  <link rel="stylesheet" href="/integration/admin.css">
+  <link rel="stylesheet" href="/integration/shop.css">
+  <script src="/integration/shop.js" defer></script>
+</head>
+<body>
+  <header class="preview-header"><span class="brand-icon">✳</span><span>COFFEE<br><strong>OVERFLOW</strong></span><span class="preview-mode">LOCAL MYSQL • TEST CHECKOUT ONLY</span></header>
+  <main class="preview-main">
+    <div class="preview-heading">
+      <span class="eyebrow">GROUP 6 / AUTHENTICATED CHECKOUT TEST</span>
+      <h1>Customer Login &amp; Checkout</h1>
+      <p>This browser connects to a real Express server and the isolated <code>coffee_overflow_integration</code> database. No payment is collected.</p>
+    </div>
+    <div class="notice-box preview-warning">Test only — this site intentionally creates a temporary account and may save one test order. Use the generated <code>@example.test</code> address, not your actual email. We'll remove it after verifying the workflow.</div>
+    <div id="status" role="status" aria-live="polite" class="preview-status">Loading local integration…</div>
+    <div class="preview-cols">
+      <section class="panel" aria-labelledby="account-title">
+        <div class="panel-top"><div><h2 id="account-title">1. Create a test account</h2><small>Role is always Customer — not Admin</small></div></div>
+        <form id="register" class="preview-form">
+          <div class="form-grid">
+            <label>First name<input class="field" name="first_name" value="Integration" required maxlength="50"></label>
+            <label>Last name<input class="field" name="last_name" value="Browser Test" required maxlength="50"></label>
+            <label class="full">Fixture email<input class="field" type="email" id="reg-email" name="email" required maxlength="50" autocomplete="off"></label>
+            <label class="full">Test password (12+ characters)<input class="field" type="password" name="password" required minlength="12" maxlength="128" autocomplete="new-password" placeholder="Create a test-only password"></label>
+            <label class="full">Street<input class="field" name="street" value="1 Example Road" required></label>
+            <label>City<input class="field" name="city" value="Test City" required></label>
+            <label>State<input class="field" name="state" value="TX" required></label>
+            <label>ZIP code<input class="field" name="zip_code" value="78253" pattern="[0-9]{5}" required></label>
+          </div>
+          <button class="btn" type="submit">Register test customer</button>
+        </form>
+      </section>
+      <section class="panel" aria-labelledby="signin-title">
+        <div class="panel-top"><div><h2 id="signin-title">2. Sign in</h2><small>Server session + CSRF verification</small></div></div>
+        <form id="login" class="preview-form">
+          <label>Email<input class="field" type="email" id="login-email" name="email" autocomplete="off" required></label>
+          <label>Password<input class="field" type="password" name="password" autocomplete="current-password" required></label>
+          <div class="preview-actions"><button class="btn" type="submit">Sign in</button><button class="btn subtle" id="logout" type="button" disabled>Sign out</button></div>
+        </form>
+        <p id="session" class="preview-session">Not signed in</p>
+      </section>
+      <section class="panel preview-checkout" aria-labelledby="checkout-title">
+        <div class="panel-top"><div><h2 id="checkout-title">3. Place one test order</h2><small>Real Jalen checkout, $19.49 total including tax</small></div></div>
+        <div class="preview-form">
+          <div id="product">Loading the integration product…</div>
+          <button class="btn" type="button" id="place" disabled>Place local MySQL test order (no payment)</button>
+          <div id="receipt" class="preview-receipt" role="status" aria-live="polite"></div>
+          <p class="muted">Only one unit of fixture product #1 can be ordered from this preview. Inventory and prices are verified by MySQL.</p>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
